@@ -1,0 +1,165 @@
+version: '3.8'
+
+services:
+  # Redis（任务队列，仅内部使用，不映射端口）
+  redis:
+    image: redis:7-alpine
+    container_name: showdoc-ai-redis
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    # 内存限制：超过 4G 自动重启
+    mem_limit: 4g
+    memswap_limit: 4g
+    oom_kill_disable: false
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - ai-network
+
+  # Qdrant（向量数据库，仅内部使用，不映射端口）
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: showdoc-ai-qdrant
+    volumes:
+      - qdrant-data:/qdrant/storage
+    restart: unless-stopped
+    # CentOS 7 特殊配置（解决 SELinux 权限问题）
+    security_opt:
+      - seccomp:unconfined
+    # 内存限制：超过 4G 自动重启
+    mem_limit: 4g
+    memswap_limit: 4g
+    oom_kill_disable: false
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 20000
+        hard: 40000
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - ai-network
+
+  # AI API 服务（FastAPI）
+  ai-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # 增加构建时的内存限制（解决内存不足问题）
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    container_name: showdoc-ai-api
+    # 内存限制：超过 4G 自动重启
+    mem_limit: 4g
+    memswap_limit: 4g
+    oom_kill_disable: false
+    ports:
+      - '7125:7125'
+    environment:
+      - SERVICE_TOKEN=${SERVICE_TOKEN}
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_COLLECTION_PREFIX=${QDRANT_COLLECTION_PREFIX:-showdoc_item_}
+      - REDIS_URL=redis://redis:6379/0
+      - LLM_CONFIG_PATH=/app/config/llm.yaml
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # 使用国内镜像加速（如果运行时需要下载其他模型）
+      - HF_ENDPOINT=https://hf-mirror.com
+      # 禁用 Python 输出缓冲，确保日志立即显示
+      - PYTHONUNBUFFERED=1
+      # 禁用所有数学库的多线程，避免 CentOS 7 下 pthread_create 失败
+      - OPENBLAS_NUM_THREADS=1
+      - OMP_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
+      - NUMEXPR_NUM_THREADS=1
+      - VECLIB_MAXIMUM_THREADS=1
+      - OMP_DYNAMIC=FALSE
+      # 禁用 tokenizers 的并行处理，避免线程创建失败
+      - TOKENIZERS_PARALLELISM=false
+    # 增加进程数和文件描述符限制
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    volumes:
+      - ./config:/app/config
+    depends_on:
+      - redis
+      - qdrant
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - ai-network
+
+  # Celery Worker（异步任务）
+  ai-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # 增加构建时的内存限制（解决内存不足问题）
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    container_name: showdoc-ai-worker
+    # 内存限制：超过 4G 自动重启
+    mem_limit: 4g
+    memswap_limit: 4g
+    oom_kill_disable: false
+    command: celery -A worker.celery_app worker --loglevel=warning
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_COLLECTION_PREFIX=${QDRANT_COLLECTION_PREFIX:-showdoc_item_}
+      - REDIS_URL=redis://redis:6379/0
+      - LLM_CONFIG_PATH=/app/config/llm.yaml
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # 使用国内镜像加速（如果运行时需要下载其他模型）
+      - HF_ENDPOINT=https://hf-mirror.com
+      # 禁用 Python 输出缓冲，确保日志立即显示
+      - PYTHONUNBUFFERED=1
+      # 禁用所有数学库的多线程，避免 CentOS 7 下 pthread_create 失败
+      - OPENBLAS_NUM_THREADS=1
+      - OMP_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
+      - NUMEXPR_NUM_THREADS=1
+      - VECLIB_MAXIMUM_THREADS=1
+      - OMP_DYNAMIC=FALSE
+      # 禁用 tokenizers 的并行处理，避免线程创建失败
+      - TOKENIZERS_PARALLELISM=false
+    # 增加进程数和文件描述符限制
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    volumes:
+      - ./config:/app/config
+    depends_on:
+      - redis
+      - qdrant
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - ai-network
+
+networks:
+  ai-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  qdrant-data:

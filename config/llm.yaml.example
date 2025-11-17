@@ -1,0 +1,18 @@
+# LLM 配置文件示例
+# 复制此文件为 llm.yaml 并配置你的 API Key
+
+llm:
+  provider: 'openai'  # openai/custom
+
+  # OpenAI API（或兼容格式）
+  openai:
+    api_key: 'sk-...'
+    base_url: 'https://api.openai.com'
+    model: 'gpt-4o-mini'  # 推荐：gpt-4o 或 gpt-4o-mini（成本更低）
+
+  # 自定义（用户本地部署或兼容 OpenAI 格式的 API）
+  custom:
+    api_key: '...'
+    base_url: 'http://localhost:8000'  # 用户自己的模型地址（需兼容 OpenAI API 格式）
+    model: 'custom-model'
+
