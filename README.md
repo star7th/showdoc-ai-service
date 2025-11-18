@@ -83,7 +83,7 @@ celery -A worker.celery_app worker --loglevel=info
 
 模型必须手动下载到 `models/bge-base-zh-v1.5/` 目录，参考 [模型下载指南](docs/manual-model-download.md)
 
-### CentOS 7 启动失败
+###  启动失败
 
 如果遇到问题，重新构建镜像：
 
