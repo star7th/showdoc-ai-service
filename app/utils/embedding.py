@@ -62,7 +62,7 @@ class EmbeddingService:
         self._config = {}  # 保存配置
         self.model_name = 'BAAI/bge-base-zh-v1.5'  # 默认模型名称
         self._last_used_time = None  # 最后使用时间
-        self._idle_timeout = 300  # 空闲超时时间（秒），默认5分钟
+        self._idle_timeout = 3600  # 空闲超时时间（秒），默认1小时
         self._lock = threading.Lock()  # 线程锁，保护模型加载/卸载
         self._load_config()
         # 延迟加载模型，避免启动时崩溃
@@ -405,7 +405,7 @@ class EmbeddingService:
         设置空闲超时时间（秒）
         
         Args:
-            timeout_seconds: 空闲超时时间，默认 300 秒（5分钟）
+            timeout_seconds: 空闲超时时间，默认 3600 秒（1小时）
         """
         self._idle_timeout = timeout_seconds
         print(f"[Embedding] 空闲超时时间已设置为 {timeout_seconds} 秒")

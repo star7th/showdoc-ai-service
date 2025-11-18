@@ -114,13 +114,11 @@ def rebuild_index_task(item_id: int, pages: list):
             print(f"[RebuildIndex] 失败的页面列表（前10个）: {error_pages[:10]}")
     finally:
         loop.close()
-        # 批量处理完成后，主动释放模型内存
+        # 批量处理完成后，检查是否空闲超时，如果是则释放模型内存
         try:
-            print("[RebuildIndex] 批量处理完成，释放模型内存...")
-            indexer.embedding_service.unload_model()
-            print("[RebuildIndex] 模型内存已释放")
+            indexer.embedding_service.check_and_unload_if_idle()
         except Exception as e:
-            print(f"[RebuildIndex] 释放模型内存时出错: {e}")
+            print(f"[RebuildIndex] 检查模型空闲状态时出错: {e}")
     
     return {
         "status": "success", 
