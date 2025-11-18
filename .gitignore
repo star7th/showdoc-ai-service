@@ -56,5 +56,7 @@ htmlcov/
 Thumbs.db
 
 .cache/
-models/
+# 只忽略根目录下的 models 目录（存放下载的模型文件）
+# 注意：使用 /models/ 而不是 models/，避免忽略 app/models/ 目录
+/models/
 

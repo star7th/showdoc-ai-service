@@ -25,7 +25,11 @@ cp config/llm.yaml.example config/llm.yaml
 ### 3. 启动服务
 
 ```bash
-# 构建并启动所有服务
+
+#构建。构建过程中要下载几个G的依赖，可能要几分钟到半个小时
+docker-compose build 
+
+# 启动所有服务
 docker-compose up -d
 
 # 查看服务状态
@@ -38,9 +42,9 @@ docker-compose logs -f
 curl http://localhost:7125/api/health
 ```
 
-### 4. 访问 API 文档
+### 把地址填写到showdoc管理后台
 
-启动服务后访问：http://localhost:7125/docs
+在showdoc管理后台填写本项目访问地址，同时填上.env环境变量里的认证token
 
 ## 本地开发
 
