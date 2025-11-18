@@ -23,7 +23,7 @@ celery_app.conf.update(
     timezone='Asia/Shanghai',
     enable_utc=True,
     task_track_started=True,
-    task_time_limit=300,  # 5 分钟超时
+    task_time_limit=300,  # 默认 5 分钟超时（用于普通任务）
     worker_max_tasks_per_child=50,  # 防止内存泄漏
     result_expires=3600,  # 任务结果过期时间（秒），1 小时后自动清理，避免死键值
     # 定时任务配置
@@ -32,6 +32,13 @@ celery_app.conf.update(
             'task': 'cleanup_unused_indexes',
             'schedule': crontab(hour=2, minute=0),  # 每天凌晨2点执行
             'args': (365,)  # 清理超过365天未访问的索引
+        },
+    },
+    # 为特定任务设置更长的超时时间
+    task_annotations={
+        'rebuild_index': {
+            'time_limit': 3600,  # 重建索引任务：60 分钟超时（大项目需要更长时间）
+            'soft_time_limit': 3300,  # 软超时：55 分钟（提前 5 分钟警告）
         },
     },
 )
