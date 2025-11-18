@@ -2,6 +2,18 @@
 
 ShowDoc AI 知识库的后端服务，提供文档索引、RAG 检索和智能问答功能。
 
+## 关于本项目
+
+本项目是 [ShowDoc](https://github.com/star7th/showdoc) 的 AI 功能扩展服务，采用**独立部署架构**：
+
+### 技术栈
+
+- **运行环境**: Python 3.10+
+- **Web 框架**: FastAPI
+- **向量数据库**: Qdrant
+- **任务队列**: Celery + Redis
+- **Embedding 模型**: BGE-base-zh-v1.5（本地部署）
+
 ## 快速开始
 
 ### 1. 准备配置
@@ -109,3 +121,11 @@ docker-compose logs -f ai-worker
 ## API 文档
 
 启动服务后访问：http://localhost:7125/docs
+
+## 相关链接
+
+- **ShowDoc 主项目**: https://github.com/star7th/showdoc
+- **产品设计文档**: 查看 ShowDoc 主项目中的 `docs/ai-knowledge-base-design.md`
+- **问题反馈**: 请在对应仓库提交 Issue
+  - AI 服务相关问题 → 本仓库
+  - ShowDoc 主功能问题 → [ShowDoc 主仓库](https://github.com/star7th/showdoc)
