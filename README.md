@@ -16,7 +16,14 @@ ShowDoc AI 知识库的后端服务，提供文档索引、RAG 检索和智能�
 
 ## 快速开始
 
-### 1. 准备配置
+### 1. 克隆项目
+
+```bash
+git clone https://github.com/star7th/showdoc-ai-service.git
+cd showdoc-ai-service
+```
+
+### 2. 准备配置
 
 ```bash
 # 复制环境变量配置
@@ -28,13 +35,13 @@ cp config/llm.yaml.example config/llm.yaml
 # 编辑 config/llm.yaml，配置你的 LLM API Key
 ```
 
-### 2. 下载模型
+### 3. 下载模型
 
 **必须**：在构建 Docker 镜像之前，先手动下载模型文件到 `models/bge-base-zh-v1.5/` 目录。
 
 详细步骤：参考 [模型下载指南](docs/manual-model-download.md)
 
-### 3. 启动服务
+### 4. 启动服务
 
 ```bash
 
