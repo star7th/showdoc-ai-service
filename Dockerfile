@@ -22,6 +22,8 @@ ENV TRANSFORMERS_NO_ADVISORY_WARNINGS=1
 ENV HF_HUB_DOWNLOAD_TIMEOUT=300
 # Python 优化：不生成 .pyc 文件（运行时不需要）
 ENV PYTHONDONTWRITEBYTECODE=1
+# Uvicorn workers 数量（可通过环境变量覆盖，默认 2）
+ENV WORKERS=2
 
 # 配置 pip 使用清华大学镜像源并更新 pip
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
@@ -115,6 +117,7 @@ EXPOSE 7125
 # 使用完整的应用（不再用最小化版本）
 # 使用 --loop asyncio 避免 uvloop 在 CentOS 7 上的兼容性问题
 # 使用 --log-level warning 精简日志输出，只显示警告和错误
-# 使用 --workers 2 启动 2 个 worker 进程，提高并发处理能力
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7125", "--workers", "2", "--log-level", "warning", "--loop", "asyncio"]
+# 使用 --workers ${WORKERS} 启动 worker 进程，数量可通过环境变量 WORKERS 控制（默认 2）
+# 使用 shell 形式以支持环境变量展开
+CMD sh -c "python -m uvicorn app.main:app --host 0.0.0.0 --port 7125 --workers ${WORKERS:-2} --log-level warning --loop asyncio"
 
