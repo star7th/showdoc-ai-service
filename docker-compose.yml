@@ -9,9 +9,6 @@ services:
       - redis-data:/data
     restart: unless-stopped
     command: redis-server --appendonly yes
-    # 内存限制：超过 4G 自动重启
-    mem_limit: 4g
-    memswap_limit: 4g
     oom_kill_disable: false
     logging:
       driver: "json-file"
@@ -31,9 +28,6 @@ services:
     # CentOS 7 特殊配置（解决 SELinux 权限问题）
     security_opt:
       - seccomp:unconfined
-    # 内存限制：超过 4G 自动重启
-    mem_limit: 4g
-    memswap_limit: 4g
     oom_kill_disable: false
     ulimits:
       nproc: 65535
@@ -57,9 +51,6 @@ services:
       args:
         BUILDKIT_INLINE_CACHE: 1
     container_name: showdoc-ai-api
-    # 内存限制：超过 4G 自动重启
-    mem_limit: 4g
-    memswap_limit: 4g
     oom_kill_disable: false
     ports:
       - '7125:7125'
@@ -112,9 +103,6 @@ services:
       args:
         BUILDKIT_INLINE_CACHE: 1
     container_name: showdoc-ai-worker
-    # 内存限制：超过 4G 自动重启
-    mem_limit: 4g
-    memswap_limit: 4g
     oom_kill_disable: false
     command: celery -A worker.celery_app worker --loglevel=warning
     environment:

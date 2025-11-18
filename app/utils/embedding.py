@@ -55,7 +55,23 @@ def normalize_base_url(base_url: Optional[str]) -> Optional[str]:
 class EmbeddingService:
     """Embedding 服务（支持本地和 API）"""
     
+    # 单例模式：确保整个应用只有一个实例
+    _instance = None
+    _singleton_lock = threading.Lock()  # 单例创建锁
+    
+    def __new__(cls):
+        """单例模式实现"""
+        if cls._instance is None:
+            with cls._singleton_lock:
+                if cls._instance is None:
+                    cls._instance = super(EmbeddingService, cls).__new__(cls)
+        return cls._instance
+    
     def __init__(self):
+        # 如果已经初始化过，直接返回（避免重复初始化）
+        if hasattr(self, '_initialized'):
+            return
+        
         self.provider = "local"  # 默认使用本地模型
         self.model = None
         self._model_loaded = False
@@ -67,6 +83,9 @@ class EmbeddingService:
         self._load_config()
         # 延迟加载模型，避免启动时崩溃
         # self._init_model()  # 注释掉，改为延迟加载
+        
+        # 标记已初始化
+        self._initialized = True
     
     def _load_config(self):
         """加载配置"""
@@ -93,6 +112,7 @@ class EmbeddingService:
         """初始化模型（延迟加载，带线程锁保护）"""
         with self._lock:
             if self._model_loaded and self.model is not None:
+                print(f"[Embedding] ✅ 重利用已加载的模型: {self.model_name}")
                 return
             
             if self.provider == 'local':
