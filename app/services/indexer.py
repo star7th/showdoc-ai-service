@@ -146,6 +146,17 @@ class Indexer:
         """删除文档索引"""
         collection_name = self._get_collection_name(item_id)
         
+        # 检查 Collection 是否存在
+        try:
+            collections = self.client.get_collections().collections
+            collection_names = [c.name for c in collections]
+            if collection_name not in collection_names:
+                # Collection 不存在，无需删除
+                return
+        except Exception as e:
+            print(f"[Indexer] 检查 Collection 失败: {e}")
+            return
+        
         # 查找并删除该文档的所有 chunks
         try:
             from qdrant_client.models import Filter, FieldCondition, MatchValue
@@ -166,9 +177,12 @@ class Indexer:
                 collection_name=collection_name,
                 points_selector=filter_condition
             )
+            # 等待删除操作完成（Qdrant 的 delete 是同步的，但为了确保一致性，稍作延迟）
+            import asyncio
+            await asyncio.sleep(0.1)  # 延迟 0.1 秒，确保删除操作完成
         except Exception as e:
-            # 如果删除失败，记录日志但不抛出异常
-            print(f"删除索引失败: {e}")
+            # 如果删除失败，记录日志但不抛出异常（避免影响后续的索引创建）
+            print(f"[Indexer] 删除索引失败: item_id={item_id}, page_id={page_id}, error={e}")
     
     async def delete_item(self, item_id: int):
         """删除整个项目的索引（删除整个 Collection）"""
