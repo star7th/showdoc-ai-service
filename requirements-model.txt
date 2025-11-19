@@ -1,0 +1,15 @@
+# Web 框架（模型服务需要）
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+httpx==0.25.1
+
+# 工具库
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# 模型相关（模型服务专用）
+sentence-transformers>=2.7.0
+huggingface-hub>=0.20.0
+torch
+transformers
+

@@ -42,6 +42,45 @@ services:
     networks:
       - ai-network
 
+  # 模型服务（Embedding 模型，仅内部使用，不映射端口）
+  model-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.model-service
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    container_name: showdoc-ai-model-service
+    oom_kill_disable: false
+    # 不映射端口，仅内部调用
+    environment:
+      # 禁用 Python 输出缓冲，确保日志立即显示
+      - PYTHONUNBUFFERED=1
+      # 禁用所有数学库的多线程，避免 CentOS 7 下 pthread_create 失败
+      - OPENBLAS_NUM_THREADS=1
+      - OMP_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
+      - NUMEXPR_NUM_THREADS=1
+      - VECLIB_MAXIMUM_THREADS=1
+      - OMP_DYNAMIC=FALSE
+      # 禁用 tokenizers 的并行处理，避免线程创建失败
+      - TOKENIZERS_PARALLELISM=false
+      # 使用国内镜像加速（如果运行时需要下载其他模型）
+      - HF_ENDPOINT=https://hf-mirror.com
+    # 增加进程数和文件描述符限制
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - ai-network
+
   # AI API 服务（FastAPI）
   ai-api:
     build:
@@ -61,6 +100,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - LLM_CONFIG_PATH=/app/config/llm.yaml
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # 模型服务地址（内部调用）
+      - MODEL_SERVICE_URL=http://model-service:7126
       # 使用国内镜像加速（如果运行时需要下载其他模型）
       - HF_ENDPOINT=https://hf-mirror.com
       # 禁用 Python 输出缓冲，确保日志立即显示
@@ -85,6 +126,7 @@ services:
     depends_on:
       - redis
       - qdrant
+      - model-service
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -111,6 +153,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - LLM_CONFIG_PATH=/app/config/llm.yaml
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # 模型服务地址（内部调用）
+      - MODEL_SERVICE_URL=http://model-service:7126
       # 使用国内镜像加速（如果运行时需要下载其他模型）
       - HF_ENDPOINT=https://hf-mirror.com
       # 禁用 Python 输出缓冲，确保日志立即显示
@@ -135,6 +179,7 @@ services:
     depends_on:
       - redis
       - qdrant
+      - model-service
     restart: unless-stopped
     logging:
       driver: "json-file"

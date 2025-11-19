@@ -31,10 +31,10 @@ RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && 
     pip install --no-cache-dir --upgrade pip
 
 # 复制依赖文件
-COPY requirements.txt .
+COPY requirements-api.txt .
 
 # 安装 Python 依赖（合并命令以减少层数）
-RUN pip install --no-cache-dir -r requirements.txt && \
+RUN pip install --no-cache-dir -r requirements-api.txt && \
     # 清理 pip 缓存和临时文件
     pip cache purge && \
     # 清理 Python 缓存文件（如果存在）
@@ -67,32 +67,7 @@ RUN pip install --no-cache-dir -r requirements.txt && \
     find /usr/local/lib/python3.12 -type d -empty -delete 2>/dev/null || true && \
     echo "✅ 依赖安装和清理完成"
 
-# 复制本地模型目录（必须手动下载）
-# 注意：模型必须手动下载并放置在 models/bge-base-zh-v1.5/ 目录下
-# 如果 models/ 目录不存在，构建会失败
-# 下载指引请参考 docs/manual-model-download.md
-COPY models/ models/
-
-# 验证模型文件（必须手动下载）
-# 模型必须手动下载并放置在 models/bge-base-zh-v1.5/ 目录下
-RUN echo "=== 验证模型文件 ===" && \
-    if [ -d models/bge-base-zh-v1.5 ] && [ "$(ls -A models/bge-base-zh-v1.5 2>/dev/null)" ]; then \
-        echo "✅ 检测到模型目录: models/bge-base-zh-v1.5" && \
-        if [ -f models/bge-base-zh-v1.5/config.json ] && [ -f models/bge-base-zh-v1.5/pytorch_model.bin ]; then \
-            echo "✅ 模型必需文件存在" && \
-            ls -lh models/bge-base-zh-v1.5/*.json models/bge-base-zh-v1.5/*.bin 2>/dev/null | head -5; \
-        else \
-            echo "❌ 模型必需文件缺失，请检查 models/bge-base-zh-v1.5/ 目录" && \
-            echo "   必需文件: config.json, pytorch_model.bin" && \
-            exit 1; \
-        fi; \
-    else \
-        echo "❌ 模型目录不存在: models/bge-base-zh-v1.5" && \
-        echo "   请手动下载模型并放置在 models/bge-base-zh-v1.5/ 目录下" && \
-        echo "   下载指引: docs/manual-model-download.md" && \
-        exit 1; \
-    fi && \
-    echo "=== 模型验证完成 ==="
+# 注意：ai-api 和 ai-worker 不再需要模型文件，模型在独立的 model-service 容器中
 
 # ============================================
 # 第二阶段：最终镜像（基于基础镜像，只添加代码）
