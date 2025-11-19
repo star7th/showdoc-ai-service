@@ -30,6 +30,9 @@ async def warmup_model(token: str = Depends(verify_token)):
     
     这样可以提前加载模型，避免用户首次对话时的延迟。
     """
+    import time
+    start_time = time.time()
+    
     try:
         from app.utils.embedding import EmbeddingService
         
@@ -37,6 +40,8 @@ async def warmup_model(token: str = Depends(verify_token)):
         
         # 如果使用 API 模式（openai/qwen），模型不需要本地加载，直接返回成功
         if embedding_service.provider in ['openai', 'qwen']:
+            elapsed = time.time() - start_time
+            print(f"[Warmup] API模式，无需加载本地模型 (耗时: {elapsed:.2f}秒)")
             return JSONResponse(
                 content={
                     "status": "success",
@@ -49,6 +54,8 @@ async def warmup_model(token: str = Depends(verify_token)):
         
         # 检查本地模型是否已加载
         if embedding_service._model_loaded and embedding_service.model is not None:
+            elapsed = time.time() - start_time
+            print(f"[Warmup] 模型已在内存中 (耗时: {elapsed:.2f}秒)")
             return JSONResponse(
                 content={
                     "status": "success",
@@ -60,11 +67,14 @@ async def warmup_model(token: str = Depends(verify_token)):
             )
         
         # 如果模型未加载，则加载模型
+        print(f"[Warmup] 开始加载模型: {embedding_service.model_name}")
         try:
             embedding_service._init_model()
             
             # 再次检查模型是否成功加载
             if embedding_service._model_loaded and embedding_service.model is not None:
+                elapsed = time.time() - start_time
+                print(f"[Warmup] ✅ 模型加载成功 (耗时: {elapsed:.2f}秒)")
                 return JSONResponse(
                     content={
                         "status": "success",
@@ -75,6 +85,8 @@ async def warmup_model(token: str = Depends(verify_token)):
                     media_type="application/json; charset=utf-8"
                 )
             else:
+                elapsed = time.time() - start_time
+                print(f"[Warmup] ❌ 模型加载失败 (耗时: {elapsed:.2f}秒)")
                 return JSONResponse(
                     content={
                         "status": "error",
@@ -84,6 +96,10 @@ async def warmup_model(token: str = Depends(verify_token)):
                     media_type="application/json; charset=utf-8"
                 )
         except Exception as e:
+            elapsed = time.time() - start_time
+            print(f"[Warmup] ❌ 模型加载异常: {str(e)} (耗时: {elapsed:.2f}秒)")
+            import traceback
+            traceback.print_exc()
             return JSONResponse(
                 content={
                     "status": "error",
@@ -93,5 +109,9 @@ async def warmup_model(token: str = Depends(verify_token)):
                 media_type="application/json; charset=utf-8"
             )
     except Exception as e:
+        elapsed = time.time() - start_time
+        print(f"[Warmup] ❌ 预热失败: {str(e)} (耗时: {elapsed:.2f}秒)")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"预热失败: {str(e)}")
 
