@@ -61,7 +61,7 @@ except Exception as e:
     sys.exit(1)
 
 try:
-    from app.routers import chat, index, health
+    from app.routers import chat, index, health, warmup
 except Exception as e:
     logger.error(f"路由模块加载失败: {e}")
     traceback.print_exc()
@@ -100,6 +100,7 @@ try:
     app.include_router(health.router, prefix="/api", tags=["健康检查"])
     app.include_router(chat.router, prefix="/api", tags=["对话"])
     app.include_router(index.router, prefix="/api", tags=["索引管理"])
+    app.include_router(warmup.router, prefix="/api", tags=["模型预热"])
 except Exception as e:
     logger.error(f"路由注册失败: {e}")
     traceback.print_exc()
