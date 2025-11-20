@@ -103,7 +103,7 @@ class ConversationManager:
         # 构建来源信息
         sources = [
             SourceInfo(
-                page_id=doc["page_id"],
+                page_id=str(doc["page_id"]),
                 page_title=doc["page_title"],
                 relevance=doc["relevance"],
                 snippet=doc["content"][:200],
@@ -164,7 +164,7 @@ class ConversationManager:
         # 返回来源信息
         sources = [
             SourceInfo(
-                page_id=doc["page_id"],
+                page_id=str(doc["page_id"]),
                 page_title=doc["page_title"],
                 relevance=doc["relevance"],
                 snippet=doc["content"][:200],
