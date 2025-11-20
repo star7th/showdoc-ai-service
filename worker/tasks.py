@@ -50,12 +50,24 @@ def index_document_task(
 def rebuild_index_task(item_id: int, pages: list):
     """批量重建索引任务"""
     import gc
+    import time
     
     # 延迟导入，避免启动时初始化
     from app.services.indexer import Indexer
     indexer = Indexer()
     
+    # 获取任务标记的 Redis 键名
+    task_key = f"ai_indexing_task:{item_id}"
+    redis_client = indexer.redis_client
+    
     print(f"[RebuildIndex] 开始重建索引: item_id={item_id}, 页面总数={len(pages)}")
+    
+    # 在 Redis 中设置任务标记（TTL 设置为 2 小时，防止任务异常退出导致标记残留）
+    try:
+        redis_client.set(task_key, int(time.time()), ttl=2 * 60 * 60)
+        print(f"[RebuildIndex] 已设置任务标记: {task_key}")
+    except Exception as e:
+        print(f"[RebuildIndex] 设置任务标记失败: {str(e)}")
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -117,6 +129,13 @@ def rebuild_index_task(item_id: int, pages: list):
         # 显式触发垃圾回收，释放内存
         import gc
         gc.collect()
+        
+        # 任务完成，删除 Redis 中的任务标记
+        try:
+            redis_client.delete(task_key)
+            print(f"[RebuildIndex] 已删除任务标记: {task_key}")
+        except Exception as e:
+            print(f"[RebuildIndex] 删除任务标记失败: {str(e)}")
     
     return {
         "status": "success", 

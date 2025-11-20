@@ -87,6 +87,7 @@ class IndexStatusResponse(BaseModel):
     """索引状态响应"""
     item_id: int
     indexed: bool
+    status: str = "not_indexed"  # 'indexed'/'indexing'/'not_indexed'
     document_count: int = 0
     last_update_time: Optional[str] = None
 

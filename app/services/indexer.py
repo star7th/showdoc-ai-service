@@ -264,23 +264,108 @@ class Indexer:
                 "error": str(e)
             }
     
+    def _get_indexing_task_key(self, item_id: int) -> str:
+        """获取索引任务 Redis 键名"""
+        return f"ai_indexing_task:{item_id}"
+    
+    def _check_indexing_task(self, item_id: int) -> bool:
+        """检查是否有正在进行的索引任务"""
+        try:
+            # 方法1：检查 Redis 中的任务标记（最可靠）
+            task_key = self._get_indexing_task_key(item_id)
+            task_exists = self.redis_client.exists(task_key)
+            if task_exists:
+                print(f"[Indexer] Redis 中发现索引任务标记: item_id={item_id}")
+                return True
+            
+            # 方法2：使用 Celery inspect API 检查活跃任务（备用方案）
+            try:
+                from worker.celery_app import celery_app
+                
+                # 使用 Celery inspect API 检查活跃任务
+                inspect = celery_app.control.inspect()
+                
+                # 获取所有活跃任务（正在执行的任务）
+                active_tasks = inspect.active()
+                if active_tasks:
+                    # active_tasks 是一个字典，key 是 worker 名称，value 是任务列表
+                    for worker_name, tasks in active_tasks.items():
+                        for task in tasks:
+                            # 检查是否是 rebuild_index 任务
+                            task_name = task.get('name', '')
+                            if task_name == 'rebuild_index' or task_name.endswith('.rebuild_index'):
+                                # 从任务参数中提取 item_id
+                                # Celery 任务参数可能存储在 args 或 kwargs 中
+                                args = task.get('args', [])
+                                kwargs = task.get('kwargs', {})
+                                
+                                # 检查 args 中的第一个参数（item_id）
+                                if args and len(args) > 0 and args[0] == item_id:
+                                    print(f"[Indexer] Celery 中发现正在进行的索引任务: item_id={item_id}, worker={worker_name}")
+                                    return True
+                                
+                                # 检查 kwargs 中的 item_id
+                                if kwargs.get('item_id') == item_id:
+                                    print(f"[Indexer] Celery 中发现正在进行的索引任务: item_id={item_id}, worker={worker_name}")
+                                    return True
+                
+                # 检查保留任务（已接收但未开始执行的任务）
+                reserved_tasks = inspect.reserved()
+                if reserved_tasks:
+                    for worker_name, tasks in reserved_tasks.items():
+                        for task in tasks:
+                            task_name = task.get('name', '')
+                            if task_name == 'rebuild_index' or task_name.endswith('.rebuild_index'):
+                                args = task.get('args', [])
+                                kwargs = task.get('kwargs', {})
+                                
+                                if args and len(args) > 0 and args[0] == item_id:
+                                    print(f"[Indexer] Celery 中发现等待执行的索引任务: item_id={item_id}, worker={worker_name}")
+                                    return True
+                                
+                                if kwargs.get('item_id') == item_id:
+                                    print(f"[Indexer] Celery 中发现等待执行的索引任务: item_id={item_id}, worker={worker_name}")
+                                    return True
+            except Exception as celery_error:
+                # Celery 检查失败不影响主流程
+                print(f"[Indexer] Celery 检查失败（可能 worker 未运行）: {str(celery_error)}")
+            
+            return False
+        except Exception as e:
+            # 如果检查失败，不影响主流程
+            print(f"[Indexer] 检查索引任务状态失败: {str(e)}")
+            return False
+    
     async def get_status(self, item_id: int) -> Dict[str, Any]:
         """获取索引状态"""
         collection_name = self._get_collection_name(item_id)
+        
+        # 先检查是否有正在进行的索引任务
+        is_indexing = self._check_indexing_task(item_id)
         
         try:
             # 先列出所有 collection，检查是否存在
             collections = self.client.get_collections().collections
             collection_names = [c.name for c in collections]
             
-            print(f"[Indexer] 查询索引状态: item_id={item_id}, collection={collection_name}")
+            print(f"[Indexer] 查询索引状态: item_id={item_id}, collection={collection_name}, is_indexing={is_indexing}")
             print(f"[Indexer] 所有 collection: {collection_names}")
             
             if collection_name not in collection_names:
                 print(f"[Indexer] Collection 不存在: {collection_name}")
+                # 如果有正在进行的任务，返回 indexing 状态
+                if is_indexing:
+                    return {
+                        "item_id": item_id,
+                        "indexed": False,
+                        "status": "indexing",
+                        "document_count": 0,
+                        "last_update_time": None
+                    }
                 return {
                     "item_id": item_id,
                     "indexed": False,
+                    "status": "not_indexed",
                     "document_count": 0,
                     "last_update_time": None
                 }
@@ -308,10 +393,22 @@ class Indexer:
                 )
                 points_count = count_result.count
             
-            print(f"[Indexer] 获取索引状态成功: item_id={item_id}, collection={collection_name}, points_count={points_count}")
+            print(f"[Indexer] 获取索引状态成功: item_id={item_id}, collection={collection_name}, points_count={points_count}, is_indexing={is_indexing}")
+            
+            # 如果有正在进行的任务，返回 indexing 状态（即使 collection 已存在）
+            if is_indexing:
+                return {
+                    "item_id": item_id,
+                    "indexed": True,  # collection 存在，但还在索引中
+                    "status": "indexing",
+                    "document_count": points_count,
+                    "last_update_time": None
+                }
+            
             return {
                 "item_id": item_id,
                 "indexed": True,
+                "status": "indexed",
                 "document_count": points_count,
                 "last_update_time": None  # Qdrant 不直接提供，需要额外记录
             }
@@ -319,9 +416,19 @@ class Indexer:
             print(f"[Indexer] 获取索引状态失败: item_id={item_id}, collection={collection_name}, error={str(e)}")
             import traceback
             traceback.print_exc()
+            # 如果有正在进行的任务，即使出错也返回 indexing 状态
+            if is_indexing:
+                return {
+                    "item_id": item_id,
+                    "indexed": False,
+                    "status": "indexing",
+                    "document_count": 0,
+                    "last_update_time": None
+                }
             return {
                 "item_id": item_id,
                 "indexed": False,
+                "status": "not_indexed",
                 "document_count": 0,
                 "last_update_time": None
             }
