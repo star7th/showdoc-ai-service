@@ -88,6 +88,7 @@ async def chat_stream(
     from fastapi.responses import StreamingResponse
     
     async def generate():
+        import asyncio
         try:
             # 记录访问时间
             try:
@@ -115,7 +116,10 @@ async def chat_stream(
                 if first_chunk and chunk_dict.get('type') == 'token' and chunk_dict.get('content'):
                     first_chunk = False
                 
+                # 立即发送 chunk，不等待缓冲
                 yield f"data: {json_str}\n\n"
+                # 让出控制权，确保立即发送
+                await asyncio.sleep(0)
             yield "data: {\"type\": \"done\"}\n\n"
         except Exception as e:
             error_msg = json.dumps({

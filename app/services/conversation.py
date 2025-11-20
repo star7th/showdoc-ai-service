@@ -180,10 +180,13 @@ class ConversationManager:
     
     async def _process_stream(self, response) -> AsyncIterator[str]:
         """处理流式响应"""
+        import asyncio
         first_chunk = True  # 标记第一个 chunk，用于日志
-        if hasattr(response, '__iter__'):
-            # OpenAI 格式
-            for chunk in response:
+        
+        # 检查是否是异步迭代器
+        if hasattr(response, '__aiter__'):
+            # 异步迭代器（OpenAI 异步客户端）
+            async for chunk in response:
                 if chunk.choices and len(chunk.choices) > 0:
                     delta = chunk.choices[0].delta
                     if hasattr(delta, 'content') and delta.content:
@@ -202,11 +205,36 @@ class ConversationManager:
                             first_chunk = False
                         
                         yield content
-        else:
-            # 通义千问格式
+                        # 让出控制权，确保立即发送
+                        await asyncio.sleep(0)
+        elif hasattr(response, '__iter__'):
+            # 同步迭代器（OpenAI 同步客户端或通义千问）
+            # 注意：这里是阻塞式迭代，但不会创建新线程，
+            # 只要 LLM SDK 本身是流式的，就会一边读取一边向前端写出
             for chunk in response:
-                if chunk.status_code == 200:
-                    if chunk.output and chunk.output.choices:
+                # OpenAI 格式
+                if hasattr(chunk, 'choices') and chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, 'content') and delta.content:
+                        content = delta.content
+                        
+                        # 确保内容是 UTF-8 编码的字符串
+                        if isinstance(content, bytes):
+                            content = content.decode('utf-8', errors='ignore')
+                        elif not isinstance(content, str):
+                            content = str(content)
+                        # 确保是有效的 UTF-8 字符串
+                        content = content.encode('utf-8', errors='ignore').decode('utf-8')
+                        
+                        # 第一个 chunk 标记
+                        if first_chunk:
+                            first_chunk = False
+                        
+                        # 同步场景下直接 yield，每拿到一块就写给前端
+                        yield content
+                # 通义千问格式
+                elif hasattr(chunk, 'status_code') and chunk.status_code == 200:
+                    if hasattr(chunk, 'output') and chunk.output and chunk.output.choices:
                         content = chunk.output.choices[0].message.content
                         if content:
                             # 确保内容是 UTF-8 编码的字符串
