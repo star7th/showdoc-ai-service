@@ -44,6 +44,10 @@ def index_document_task(
             indexer.embedding_service.check_and_unload_if_idle()
         except Exception as e:
             print(f"[IndexDocument] 释放模型内存时出错: {e}")
+        
+        # 显式触发垃圾回收，释放内存
+        import gc
+        gc.collect()
     
     return {"status": "success", "item_id": item_id, "page_id": page_id}
 
@@ -51,6 +55,8 @@ def index_document_task(
 @celery_app.task(name="rebuild_index")
 def rebuild_index_task(item_id: int, pages: list):
     """批量重建索引任务"""
+    import gc
+    
     # 延迟导入，避免启动时初始化
     from app.services.indexer import Indexer
     indexer = Indexer()

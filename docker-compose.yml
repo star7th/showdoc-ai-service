@@ -115,6 +115,11 @@ services:
       - OMP_DYNAMIC=FALSE
       # 禁用 tokenizers 的并行处理，避免线程创建失败
       - TOKENIZERS_PARALLELISM=false
+      # 内存优化
+      - PYTHONOPTIMIZE=2
+      - PYTHONHASHSEED=0
+      - MALLOC_ARENA_MAX=2
+      - WORKERS=1
     # 增加进程数和文件描述符限制
     ulimits:
       nproc: 65535
@@ -140,19 +145,25 @@ services:
   ai-worker:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.worker  # 使用 Worker 专用 Dockerfile（精简依赖）
       # 增加构建时的内存限制（解决内存不足问题）
       args:
         BUILDKIT_INLINE_CACHE: 1
     container_name: showdoc-ai-worker
     oom_kill_disable: false
-    command: celery -A worker.celery_app worker --loglevel=warning
+    # 使用 prefork pool（进程池）支持多任务并发
+    # concurrency 通过环境变量 WORKER_CONCURRENCY 控制（默认 4）
+    # 注意：gevent pool 在 CentOS 7 等受限环境下可能遇到线程创建问题，改用 prefork
+    # 空闲时子进程会自动释放内存，worker_max_tasks_per_child=10 确保定期重启释放内存
+    command: celery -A worker.celery_app worker --loglevel=warning --pool=prefork --concurrency=${WORKER_CONCURRENCY:-4}
     environment:
       - QDRANT_URL=http://qdrant:6333
       - QDRANT_COLLECTION_PREFIX=${QDRANT_COLLECTION_PREFIX:-showdoc_item_}
       - REDIS_URL=redis://redis:6379/0
       - LLM_CONFIG_PATH=/app/config/llm.yaml
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Worker 并发数（通过环境变量控制）
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-4}
       # 模型服务地址（内部调用）
       - MODEL_SERVICE_URL=http://model-service:7126
       # 使用国内镜像加速（如果运行时需要下载其他模型）
@@ -168,6 +179,10 @@ services:
       - OMP_DYNAMIC=FALSE
       # 禁用 tokenizers 的并行处理，避免线程创建失败
       - TOKENIZERS_PARALLELISM=false
+      # 内存优化
+      - PYTHONOPTIMIZE=2
+      - PYTHONHASHSEED=0
+      - MALLOC_ARENA_MAX=2
     # 增加进程数和文件描述符限制
     ulimits:
       nproc: 65535

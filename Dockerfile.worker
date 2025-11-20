@@ -1,9 +1,6 @@
 # ============================================
-# API 服务专用 Dockerfile
-# 包含 Web 框架和 LLM SDK，用于处理对话请求
-# ============================================
-# 第一阶段：基础镜像（包含依赖）
-# 只有当 requirements-api.txt 改变时才需要重新构建
+# Worker 专用 Dockerfile（精简版）
+# 移除了不必要的 Web 框架和 LLM SDK，节省 40-60MB
 # ============================================
 FROM python:3.12-slim AS base
 
@@ -18,7 +15,7 @@ ENV OMP_NUM_THREADS=1
 ENV MKL_NUM_THREADS=1
 ENV NUMEXPR_NUM_THREADS=1
 ENV VECLIB_MAXIMUM_THREADS=1
-# 禁用 transformers 和 tokenizers 的多线程操作（避免 CentOS 7 等受限环境的线程创建失败）
+# 禁用 transformers 和 tokenizers 的多线程操作
 ENV TOKENIZERS_PARALLELISM=false
 ENV HF_HUB_DISABLE_PROGRESS_BARS=1
 ENV TRANSFORMERS_NO_ADVISORY_WARNINGS=1
@@ -29,38 +26,29 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONOPTIMIZE=2
 ENV PYTHONHASHSEED=0
 ENV MALLOC_ARENA_MAX=2
-# Uvicorn workers 数量（可通过环境变量覆盖，默认 1 以节省内存）
-ENV WORKERS=1
 
 # 配置 pip 使用清华大学镜像源并更新 pip
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
     pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn && \
     pip install --no-cache-dir --upgrade pip
 
-# 复制依赖文件
-COPY requirements-api.txt .
+# 复制 Worker 专用依赖文件
+COPY requirements-worker.txt .
 
 # 安装 Python 依赖（合并命令以减少层数）
-RUN pip install --no-cache-dir -r requirements-api.txt && \
+RUN pip install --no-cache-dir -r requirements-worker.txt && \
     # 清理 pip 缓存和临时文件
     pip cache purge && \
     # 清理 Python 缓存文件（如果存在）
     find /usr/local/lib/python3.12 -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python3.12 -type f -name "*.pyc" -delete 2>/dev/null || true && \
     find /usr/local/lib/python3.12 -type f -name "*.pyo" -delete 2>/dev/null || true && \
-    # 清理不必要的测试和示例文件（保留运行时需要的文件）
+    # 清理不必要的测试和示例文件
     find /usr/local/lib/python3.12/site-packages -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python3.12/site-packages -type d -name "test" -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python3.12/site-packages -type d -name "examples" -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python3.12/site-packages -type d -name "example" -exec rm -rf {} + 2>/dev/null || true && \
-    # 清理 torch 的测试和示例文件（torch 包很大，清理这些可以节省空间）
-    find /usr/local/lib/python3.12/site-packages/torch -type d -name "test" -exec rm -rf {} + 2>/dev/null || true && \
-    find /usr/local/lib/python3.12/site-packages/torch -type d -name "examples" -exec rm -rf {} + 2>/dev/null || true && \
-    find /usr/local/lib/python3.12/site-packages/torch -type d -name "benchmark" -exec rm -rf {} + 2>/dev/null || true && \
-    # 清理 transformers 的测试和示例文件
-    find /usr/local/lib/python3.12/site-packages/transformers -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true && \
-    find /usr/local/lib/python3.12/site-packages/transformers -type d -name "examples" -exec rm -rf {} + 2>/dev/null || true && \
-    # 清理文档文件（保留运行时需要的文件）
+    # 清理文档文件
     find /usr/local/lib/python3.12/site-packages -type f -name "*.md" -delete 2>/dev/null || true && \
     find /usr/local/lib/python3.12/site-packages -type f -name "*.rst" -delete 2>/dev/null || true && \
     find /usr/local/lib/python3.12/site-packages -type f -name "LICENSE*" -delete 2>/dev/null || true && \
@@ -69,35 +57,30 @@ RUN pip install --no-cache-dir -r requirements-api.txt && \
     find /usr/local/lib/python3.12/site-packages -type f -name "CONTRIBUTING*" -delete 2>/dev/null || true && \
     # 清理空目录
     find /usr/local/lib/python3.12 -type d -empty -delete 2>/dev/null || true && \
-    echo "✅ 依赖安装和清理完成"
-
-# 注意：ai-api 和 ai-worker 不再需要模型文件，模型在独立的 model-service 容器中
+    echo "✅ Worker 依赖安装和清理完成"
 
 # ============================================
 # 第二阶段：最终镜像（基于基础镜像，只添加代码）
-# 当代码改变时，只需要重新构建这一层，基础层会被缓存复用
 # ============================================
 FROM base AS final
 
-# 复制 API 服务需要的应用代码
-# 注意：需要复制 worker 目录，因为 app/routers/index.py 需要导入 worker.tasks
-COPY app/ app/
+# 复制应用代码（只复制 Worker 需要的部分）
+COPY app/config.py app/config.py
+COPY app/__init__.py app/__init__.py
+COPY app/models/ app/models/
+COPY app/services/ app/services/
+COPY app/utils/ app/utils/
 COPY worker/ worker/
 
 # 清理应用代码的缓存文件（如果存在）
 RUN find /app -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
     find /app -type f -name "*.pyc" -delete 2>/dev/null || true && \
     find /app -type f -name "*.pyo" -delete 2>/dev/null || true && \
-    echo "✅ API 应用代码清理完成"
+    echo "✅ Worker 应用代码清理完成"
 
-# 暴露端口
-EXPOSE 7125
+# Worker 不需要暴露端口（不提供 HTTP 服务）
 
-# 启动命令
-# 使用完整的应用（不再用最小化版本）
-# 使用 --loop asyncio 避免 uvloop 在 CentOS 7 上的兼容性问题
-# 使用 --log-level warning 精简日志输出，只显示警告和错误
-# 使用 --workers ${WORKERS} 启动 worker 进程，数量可通过环境变量 WORKERS 控制（默认 1 以节省内存）
-# 使用 shell 形式以支持环境变量展开
-CMD sh -c "python -m uvicorn app.main:app --host 0.0.0.0 --port 7125 --workers ${WORKERS:-1} --log-level warning --loop asyncio"
+# 启动命令（会被 docker-compose 覆盖）
+# 使用 gevent pool 支持并发，concurrency 可在 docker-compose 中调整
+CMD ["celery", "-A", "worker.celery_app", "worker", "--loglevel=warning", "--pool=gevent", "--concurrency=3"]
 

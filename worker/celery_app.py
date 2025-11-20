@@ -15,7 +15,7 @@ celery_app = Celery(
     include=["worker.tasks"]
 )
 
-# Celery 配置
+# Celery 配置（内存优化版）
 celery_app.conf.update(
     task_serializer='json',
     accept_content=['json'],
@@ -24,8 +24,19 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     task_time_limit=300,  # 默认 5 分钟超时（用于普通任务）
-    worker_max_tasks_per_child=50,  # 防止内存泄漏
-    result_expires=3600,  # 任务结果过期时间（秒），1 小时后自动清理，避免死键值
+    
+    # 内存优化配置
+    worker_max_tasks_per_child=10,  # 每个子进程处理 10 个任务后重启，确保空闲时释放内存
+    worker_prefetch_multiplier=1,  # 每次只预取 1 个任务，减少内存占用
+    worker_disable_rate_limits=True,  # 禁用速率限制，减少开销
+    task_acks_late=True,  # 任务完成后才确认，避免任务丢失
+    task_reject_on_worker_lost=True,  # worker 丢失时拒绝任务
+    # 空闲时自动回收子进程（如果长时间无任务，子进程会自动退出释放内存）
+    worker_max_memory_per_child=200000,  # 每个子进程最大内存 200MB，超过后重启
+    
+    # 结果存储优化
+    result_expires=1800,  # 从 3600 降到 1800（30分钟），更快清理结果
+    
     # 定时任务配置
     beat_schedule={
         'cleanup-unused-indexes': {
@@ -34,6 +45,7 @@ celery_app.conf.update(
             'args': (365,)  # 清理超过365天未访问的索引
         },
     },
+    
     # 为特定任务设置更长的超时时间
     task_annotations={
         'rebuild_index': {

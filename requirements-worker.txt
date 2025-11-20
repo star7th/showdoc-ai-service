@@ -1,0 +1,27 @@
+# Worker 专用依赖（精简版）
+# Worker 不需要 Web 框架和 LLM SDK，只需要任务队列和向量数据库
+
+# 任务队列
+celery==5.3.4
+redis==5.0.1
+gevent==23.9.1  # 协程池，支持并发且节省内存
+
+# 向量数据库
+qdrant-client>=1.7.0
+
+# HTTP 客户端（调用模型服务）
+httpx==0.25.1
+
+# 工具库
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+pyyaml==6.0.1
+
+# Worker 不需要以下依赖（相比 API 服务节省 40-60MB）：
+# - fastapi（API 服务专用）
+# - uvicorn（API 服务专用）
+# - python-multipart（API 服务专用）
+# - openai（Worker 不直接调用 LLM）
+# - dashscope（Worker 不直接调用 LLM）
+
