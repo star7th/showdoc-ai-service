@@ -17,7 +17,7 @@ class ChatRequest(BaseModel):
 
 class SourceInfo(BaseModel):
     """引用来源信息"""
-    page_id: int
+    page_id: str
     page_title: str
     relevance: float
     snippet: str
