@@ -152,10 +152,10 @@ services:
     container_name: showdoc-ai-worker
     oom_kill_disable: false
     # 使用 prefork pool（进程池）支持多任务并发
-    # concurrency 通过环境变量 WORKER_CONCURRENCY 控制（默认 4）
-    # 注意：gevent pool 在 CentOS 7 等受限环境下可能遇到线程创建问题，改用 prefork
+    # 通过 autoscale 在空闲时自动缩容：最大 4 并发，最小 1 并发
+    # 注意：启用 --autoscale 后 --concurrency 将被忽略
     # 空闲时子进程会自动释放内存，worker_max_tasks_per_child=10 确保定期重启释放内存
-    command: celery -A worker.celery_app worker --loglevel=warning --pool=prefork --concurrency=${WORKER_CONCURRENCY:-4}
+    command: celery -A worker.celery_app worker --loglevel=warning --pool=prefork --autoscale=4,1
     environment:
       - QDRANT_URL=http://qdrant:6333
       - QDRANT_COLLECTION_PREFIX=${QDRANT_COLLECTION_PREFIX:-showdoc_item_}
